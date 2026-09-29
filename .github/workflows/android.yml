@@ -1,0 +1,76 @@
+name: Gerar APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Gerar build web
+        run: npm run build
+
+      - name: Instalar Capacitor
+        run: |
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Criar configuração do Capacitor
+        run: |
+          cat > capacitor.config.ts <<'EOF'
+          import type { CapacitorConfig } from '@capacitor/cli';
+
+          const config: CapacitorConfig = {
+            appId: 'com.terminalmensagens.app',
+            appName: 'Terminal Mensagens',
+            webDir: 'dist'
+          };
+
+          export default config;
+          EOF
+
+      - name: Criar projeto Android
+        run: npx cap add android
+
+      - name: Sincronizar projeto Android
+        run: npx cap sync android
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar SDK Android
+        run: |
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
+
+      - name: Dar permissão ao Gradle
+        run: chmod +x android/gradlew
+
+      - name: Gerar APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminal-mensagens-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
